@@ -5,3 +5,4 @@ pandas>=2.2.0
 gunicorn==21.2.0
 supabase==2.3.4
 scikit-learn
+websockets>=12.0
