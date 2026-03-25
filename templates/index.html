@@ -3,66 +3,268 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stock Strategy Analyzer</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>SYS // STOCK_ANALYZER_BY_A_NOOB</title>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
     <style>
-        body { background-color: #f8f9fa; }
-        .STRONG.BUY, .BUY { color: #198754; font-weight: bold; }
-        .STRONG.SELL, .SELL { color: #dc3545; font-weight: bold; }
-        .HOLD { color: #ffc107; font-weight: bold; }
+        :root {
+            --bg-color: #030303;
+            --fg-color: #ffffff;
+            --dim-color: #666666;
+            --border-color: #333333;
+            
+            /* Neon Opinion Colors */
+            --neon-green: #39ff14;
+            --neon-red: #ff2a2a;
+            --neon-yellow: #f8df00;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--fg-color);
+            font-family: 'Share Tech Mono', monospace;
+            text-transform: uppercase;
+            margin: 0;
+            padding: 2rem;
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        /* Glitchy Header */
+        .header {
+            border-bottom: 2px solid var(--fg-color);
+            padding-bottom: 1rem;
+            margin-bottom: 2.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 2rem; /* Scaled down slightly to fit the longer name */
+            letter-spacing: 2px;
+        }
+
+        .cursor {
+            animation: blink 1s step-start infinite;
+        }
+
+        @keyframes blink { 50% { opacity: 0; } }
+
+        /* UI Cards */
+        .card {
+            border: 1px solid var(--border-color);
+            background: transparent;
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            position: relative;
+        }
+
+        /* Futuristic Corner Accents */
+        .card::before, .card::after {
+            content: '';
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            border: 1px solid var(--fg-color);
+        }
+        .card::before { top: -1px; left: -1px; border-right: none; border-bottom: none; }
+        .card::after { bottom: -1px; right: -1px; border-left: none; border-top: none; }
+
+        /* Form Inputs */
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--dim-color);
+            letter-spacing: 1px;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            background: transparent;
+            border: 1px solid var(--dim-color);
+            color: var(--fg-color);
+            padding: 1rem;
+            font-family: inherit;
+            font-size: 1.2rem;
+            text-transform: uppercase;
+            box-sizing: border-box;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: var(--fg-color);
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.15);
+        }
+
+        /* Execution Button */
+        button {
+            width: 100%;
+            background: var(--fg-color);
+            color: var(--bg-color);
+            border: 1px solid var(--fg-color);
+            padding: 1rem;
+            font-family: inherit;
+            font-size: 1.2rem;
+            font-weight: bold;
+            letter-spacing: 3px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background: var(--bg-color);
+            color: var(--fg-color);
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.3);
+        }
+
+        /* Results Display */
+        .symbol-title {
+            font-size: 2.2rem;
+            margin-top: 0;
+            margin-bottom: 1.5rem;
+            border-bottom: 1px dashed var(--border-color);
+            padding-bottom: 0.5rem;
+        }
+
+        .result-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .data-block {
+            border-left: 3px solid var(--dim-color);
+            padding-left: 1rem;
+        }
+
+        .data-label {
+            color: var(--dim-color);
+            font-size: 0.85rem;
+            letter-spacing: 2px;
+            margin-bottom: 0.25rem;
+        }
+
+        .data-value {
+            font-size: 1.3rem;
+        }
+
+        /* Colored Signal Indicators */
+        .signal-box {
+            display: inline-block;
+            padding: 0.3rem 0.8rem;
+            font-weight: bold;
+            letter-spacing: 1px;
+            color: var(--bg-color); /* Black text inside the colored box */
+        }
+
+        .signal-BUY, .signal-STRONG-BUY {
+            background-color: var(--neon-green);
+            border: 1px solid var(--neon-green);
+            box-shadow: 0 0 10px rgba(57, 255, 20, 0.3);
+        }
+
+        .signal-SELL, .signal-STRONG-SELL {
+            background-color: var(--neon-red);
+            border: 1px solid var(--neon-red);
+            box-shadow: 0 0 10px rgba(255, 42, 42, 0.3);
+        }
+
+        .signal-HOLD {
+            background-color: var(--neon-yellow);
+            border: 1px solid var(--neon-yellow);
+            box-shadow: 0 0 10px rgba(248, 223, 0, 0.3);
+        }
+
+        .rationale-block {
+            margin-top: 2rem;
+            border-left-color: var(--fg-color);
+        }
+
+        .error-text {
+            border: 1px dashed var(--neon-red);
+            color: var(--neon-red);
+            padding: 1rem;
+            display: inline-block;
+        }
     </style>
 </head>
 <body>
-    <div class="container mt-5">
-        <div class="row justify-content-center">
-            <div class="col-md-8">
-                
-                <div class="card shadow-sm mb-4">
-                    <div class="card-header bg-dark text-white">
-                        <h4 class="mb-0">Algorithmic Stock Analyzer</h4>
-                    </div>
-                    <div class="card-body">
-                        <form method="POST">
-                            <div class="mb-3">
-                                <label for="symbols" class="form-label">Enter Company Names or Tickers (comma separated):</label>
-                                <input type="text" class="form-control" id="symbols" name="symbols" placeholder="e.g. Apple, TSLA, Microsoft" required>
-                            </div>
-                            <button type="submit" class="btn btn-primary w-100">Analyze Now</button>
-                        </form>
-                    </div>
-                </div>
+    <div class="container">
+        
+        <div class="header">
+            <h1>STOCK_ANALYZER_BY_A_NOOB<span class="cursor">_</span></h1>
+            <span style="color: var(--dim-color);">STATUS: ONLINE</span>
+        </div>
 
-                {% if results %}
-                    <h5 class="mb-3">Analysis Results:</h5>
-                    {% for item in results %}
-                        <div class="card mb-3 shadow-sm border-0 border-start border-4 border-primary">
-                            <div class="card-body">
-                                <h3 class="card-title text-primary">{{ item.symbol }}</h3>
-                                
-                                {% if item.error %}
-                                    <p class="text-danger"><strong>Error:</strong> {{ item.error }}</p>
-                                {% else %}
-                                    <div class="row mt-3">
-                                        <div class="col-sm-6">
-                                            <p><strong>Action:</strong> <span class="{{ item.signal }}">{{ item.signal }}</span></p>
-                                            <p><strong>Current Price:</strong> ${{ item.latest_price }}</p>
-                                            <p><strong>20-Day SMA:</strong> ${{ item.sma_20 }}</p>
-                                            <p><strong>Price vs SMA:</strong> {{ item.price_vs_sma_pct }}%</p>
-                                        </div>
-                                        <div class="col-sm-6">
-                                            <p><strong>Sentiment Score:</strong> {{ item.sentiment_score }}</p>
-                                            <p><strong>Sentiment Source:</strong> <span class="badge bg-secondary">{{ item.sentiment_source }}</span></p>
-                                            <p><strong>Rationale:</strong> {{ item.rationale }}</p>
-                                        </div>
-                                    </div>
-                                {% endif %}
+        <div class="card">
+            <form method="POST" autocomplete="off">
+                <div class="form-group">
+                    <label for="symbols">TARGET_TICKERS (COMMA_SEPARATED) &gt;</label>
+                    <input type="text" id="symbols" name="symbols" placeholder="AWAITING INPUT..." required autocomplete="nope">
+                </div>
+                <button type="submit">[ INITIATE_SCAN ]</button>
+            </form>
+        </div>
+
+        {% if results %}
+            <div style="color: var(--dim-color); margin-bottom: 1rem; letter-spacing: 2px;">
+                &gt;&gt; SCAN_COMPLETE // RESULTS_GENERATED
+            </div>
+            
+            {% for item in results %}
+                <div class="card">
+                    <h2 class="symbol-title">&gt; {{ item.symbol }}</h2>
+                    
+                    {% if item.error %}
+                        <div class="error-text">ERR_CODE: {{ item.error }}</div>
+                    {% else %}
+                        <div class="result-grid">
+                            <div class="data-block">
+                                <div class="data-label">SYSTEM_DIRECTIVE</div>
+                                <div class="data-value">
+                                    <span class="signal-box signal-{{ item.signal | replace(' ', '-') }}">
+                                        {{ item.signal }}
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <div class="data-block">
+                                <div class="data-label">MARKET_PRICE</div>
+                                <div class="data-value">${{ item.latest_price }}</div>
+                            </div>
+                            
+                            <div class="data-block">
+                                <div class="data-label">SMA_20_DAY</div>
+                                <div class="data-value">${{ item.sma_20 }} ({{ item.price_vs_sma_pct }}%)</div>
+                            </div>
+                            
+                            <div class="data-block">
+                                <div class="data-label">SENTIMENT_IDX</div>
+                                <div class="data-value">{{ item.sentiment_score }} [{{ item.sentiment_source }}]</div>
                             </div>
                         </div>
-                    {% endfor %}
-                {% endif %}
 
-            </div>
-        </div>
+                        <div class="data-block rationale-block">
+                            <div class="data-label">ALGORITHMIC_RATIONALE</div>
+                            <div class="data-value" style="font-size: 1rem;">{{ item.rationale }}</div>
+                        </div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        {% endif %}
+
     </div>
 </body>
 </html>
