@@ -2,17 +2,30 @@ from flask import Flask, request, render_template
 import yfinance as yf
 import requests
 import re
-from datetime import date
+from datetime import datetime, timezone, timedelta
 import os
+import numpy as np
+from sklearn.linear_model import LinearRegression
+from supabase import create_client, Client
 
 app = Flask(__name__)
 
-# --- Configuration ---
-# You will add HF_API_KEY in your Render Environment Variables later
+# --- Configuration & Keys ---
 HF_API_KEY = os.environ.get('HF_API_KEY')
 HF_API_URL = "https://api.huggingface.co/models/ProsusAI/finbert"
 
-# --- Fallback Sentiment Analyzer (If API fails) ---
+SUPABASE_URL = os.environ.get('SUPABASE_URL')
+SUPABASE_KEY = os.environ.get('SUPABASE_KEY')
+
+# --- Initialize Database ---
+supabase: Client = None
+if SUPABASE_URL and SUPABASE_KEY:
+    try:
+        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+    except Exception as e:
+        print(f"Supabase Init Error: {e}")
+
+# --- Fallback Sentiment Analyzer ---
 class BasicSentimentAnalyzer:
     def __init__(self):
         self.positive_words = {'growth', 'surge', 'rise', 'up', 'gain', 'bull', 'buy', 'strong', 'profit', 'beat', 'record', 'high', 'rally', 'positive', 'win', 'upgrade', 'dividend'}
@@ -41,27 +54,65 @@ def get_symbol_from_name(query):
 
 def analyze_stock(symbol, market):
     try:
-        # 1. Market Formatting
+        # 1. Market Formatting (Indian vs US)
         if market == 'IN' and not symbol.endswith('.NS'):
             symbol = f"{symbol}.NS"
             
+        # 2. Database Cache Check (Zero-Latency Load)
+        if supabase:
+            try:
+                cache_res = supabase.table('stock_cache').select('*').eq('symbol', symbol).execute()
+                if len(cache_res.data) > 0:
+                    cached_row = cache_res.data[0]
+                    last_updated_str = cached_row['last_updated']
+                    last_updated = datetime.fromisoformat(last_updated_str.replace('Z', '+00:00'))
+                    
+                    # Serve from database if less than 1 hour old
+                    if datetime.now(timezone.utc) - last_updated < timedelta(hours=1):
+                        print(f"✅ Served {symbol} instantly from Supabase Cache!")
+                        return cached_row['data']
+            except Exception as e:
+                print(f"Cache Read Error: {e}")
+
+        # 3. Fetch Fresh Data from Yahoo Finance
+        print(f"⏳ Fetching fresh data for {symbol}...")
         ticker = yf.Ticker(symbol)
         history = ticker.history(period="1y")
         
         if len(history) < 20:
             return {"symbol": symbol, "error": "Not enough historical data for analysis."}
 
-        # 2. Price & SMA calculations
+        # 4. Price & SMA calculations
         latest_price = float(history['Close'].iloc[-1])
         history['SMA_20'] = history['Close'].rolling(window=20).mean()
         sma_20 = float(history['SMA_20'].iloc[-1])
         price_vs_sma_pct = (latest_price - sma_20) / sma_20
         
-        # 3. Chart Data Extraction (Last 6 months)
-        chart_dates = history.index.strftime('%Y-%m-%d').tolist()[-120:]
-        chart_prices = history['Close'].round(2).tolist()[-120:]
+        # 5. Chart Data & Predictive Machine Learning (Scikit-Learn)
+        recent_history = history.tail(120).copy()
+        chart_dates = recent_history.index.strftime('%Y-%m-%d').tolist()
+        chart_prices = recent_history['Close'].round(2).tolist()
 
-        # 4. The Backtesting Engine (1-Year SMA Strategy)
+        # Prepare data for AI Linear Regression
+        recent_history['Days_From_Start'] = np.arange(len(recent_history))
+        X = recent_history[['Days_From_Start']]
+        y = recent_history['Close']
+
+        # Train Model
+        model = LinearRegression()
+        model.fit(X, y)
+
+        # Predict next 7 days
+        last_day_index = len(recent_history)
+        future_X = np.arange(last_day_index, last_day_index + 7).reshape(-1, 1)
+        future_predictions = model.predict(future_X)
+
+        # Generate future dates and prices
+        last_date = recent_history.index[-1]
+        future_dates = [(last_date + timedelta(days=i)).strftime('%Y-%m-%d') for i in range(1, 8)]
+        future_prices = [round(p, 2) for p in future_predictions]
+
+        # 6. The Backtesting Engine (1-Year SMA Strategy Simulation)
         capital = 10000.0 
         shares = 0
         for i in range(20, len(history)):
@@ -78,7 +129,7 @@ def analyze_stock(symbol, market):
         final_value = capital + (shares * latest_price)
         backtest_return_pct = ((final_value - 10000.0) / 10000.0) * 100
 
-        # 5. Hugging Face FinBERT Sentiment Analysis
+        # 7. Hugging Face FinBERT Sentiment Analysis
         sentiment_score = 0
         sentiment_source = "None"
         news_titles = []
@@ -86,13 +137,12 @@ def analyze_stock(symbol, market):
         try:
             news = ticker.news
             if news:
-                # Grab the top 5 most recent headlines to keep API fast
                 news_titles = [item.get('title', '') for item in news][:5]
         except Exception:
             pass
 
         if news_titles:
-            # Try Hugging Face API First
+            # Attempt AI inference via Hugging Face API
             if HF_API_KEY:
                 try:
                     headers = {"Authorization": f"Bearer {HF_API_KEY}"}
@@ -104,18 +154,14 @@ def analyze_stock(symbol, market):
                         total_score = 0
                         valid_count = 0
                         
-                        # Parse FinBERT's output (positive, negative, neutral)
                         for result in hf_results:
                             if not result: continue
-                            top_prediction = result[0] # Gets the highest confidence label
+                            top_prediction = result[0] 
                             label = top_prediction.get('label', '')
                             score = top_prediction.get('score', 0)
                             
-                            if label == 'positive':
-                                total_score += score
-                            elif label == 'negative':
-                                total_score -= score
-                            # neutral adds 0
+                            if label == 'positive': total_score += score
+                            elif label == 'negative': total_score -= score
                             valid_count += 1
                             
                         if valid_count > 0:
@@ -124,28 +170,27 @@ def analyze_stock(symbol, market):
                 except Exception as e:
                     print(f"HF API Failed: {e}")
 
-            # Fallback to local basic analyzer if HF failed or no key is present
+            # Fallback to local dictionary if HF fails
             if sentiment_source == "None":
                 total_score = sum(fallback_analyzer.analyze(title) for title in news_titles)
                 sentiment_score = total_score / len(news_titles)
                 sentiment_source = "Local Algorithmic Fallback"
 
-        # 6. Decision Logic
+        # 8. Core Decision Logic
         signal = "HOLD"
         rationale = "Mixed technical and sentiment indicators."
-        
-        # Adjust thresholds based on source accuracy
         bull_thresh = 0.2 if "FinBERT" in sentiment_source else 0.1
         bear_thresh = -0.2 if "FinBERT" in sentiment_source else -0.1
         
         if price_vs_sma_pct > 0 and sentiment_score > 0:
             signal = "STRONG BUY" if (price_vs_sma_pct > 0.02 and sentiment_score > bull_thresh) else "BUY"
-            rationale = "Uptrend confirmed: Price above SMA with positive AI market sentiment."
+            rationale = "Uptrend confirmed: Price above SMA with positive market sentiment."
         elif price_vs_sma_pct < 0 and sentiment_score < 0:
             signal = "STRONG SELL" if (price_vs_sma_pct < -0.02 and sentiment_score < bear_thresh) else "SELL"
-            rationale = "Downtrend confirmed: Price below SMA with negative AI market sentiment."
+            rationale = "Downtrend confirmed: Price below SMA with negative market sentiment."
 
-        return {
+        # Compile final dictionary to send to frontend
+        final_result = {
             "symbol": symbol,
             "latest_price": round(latest_price, 2),
             "sma_20": round(sma_20, 2),
@@ -156,8 +201,25 @@ def analyze_stock(symbol, market):
             "rationale": rationale,
             "backtest_return": round(backtest_return_pct, 2),
             "chart_dates": chart_dates,
-            "chart_prices": chart_prices
+            "chart_prices": chart_prices,
+            "future_dates": future_dates,
+            "future_prices": future_prices
         }
+
+        # 9. Save to Database Cache
+        if supabase:
+            try:
+                supabase.table('stock_cache').upsert({
+                    'symbol': symbol, 
+                    'data': final_result,
+                    'last_updated': datetime.now(timezone.utc).isoformat()
+                }).execute()
+                print(f"💾 Saved {symbol} to Supabase Cache.")
+            except Exception as e:
+                print(f"Cache Write Error: {e}")
+
+        return final_result
+
     except Exception as e:
         return {"symbol": symbol, "error": str(e)}
 
