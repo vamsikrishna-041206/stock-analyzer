@@ -1,5 +1,5 @@
 Flask==3.0.0
-yfinance==0.2.36
-requests==2.31.0
-pandas==2.2.0
+yfinance
+requests
+pandas>=2.2.0
 gunicorn==21.2.0
