@@ -57,7 +57,7 @@ def get_symbol_from_name(query):
 
 def get_google_news_headlines(symbol, market):
     try:
-        clean_symbol = symbol.replace('.NS', '')
+        clean_symbol = symbol.replace('.NS', '').replace('.BO', '')
         query = urllib.parse.quote(f"{clean_symbol} stock finance news")
         
         if market == 'IN':
@@ -83,30 +83,54 @@ def get_google_news_headlines(symbol, market):
 # --- Core Algorithmic Engine ---
 def analyze_stock(symbol, market):
     try:
-        # 1. Market Formatting
-        if market == 'IN' and not symbol.endswith('.NS'):
-            symbol = f"{symbol}.NS"
-            
-        # 2. Database Cache Check
-        if supabase:
-            try:
-                cache_res = supabase.table('stock_cache').select('*').eq('symbol', symbol).execute()
-                if len(cache_res.data) > 0:
-                    cached_row = cache_res.data[0]
-                    last_updated_str = cached_row['last_updated']
-                    last_updated = datetime.fromisoformat(last_updated_str.replace('Z', '+00:00'))
-                    
-                    if datetime.now(timezone.utc) - last_updated < timedelta(hours=1):
-                        return cached_row['data']
-            except Exception as e:
-                print(f"Cache Read Error: {e}")
+        # === 1. THE EXCHANGE HUNTER ===
+        if market == 'IN':
+            # Remove any existing suffixes so we can test cleanly
+            base_symbol = symbol.replace('.NS', '').replace('.BO', '')
+            suffixes = ['.NS', '.BO'] # Try NSE first, then BSE
+        else:
+            base_symbol = symbol
+            suffixes = ['']
 
-        # 3. Fetch Fresh Data
-        ticker = yf.Ticker(symbol)
-        history = ticker.history(period="1y")
-        
-        if len(history) < 20:
-            return {"symbol": symbol, "error": "Not enough historical data for analysis."}
+        history = None
+        valid_symbol = symbol
+
+        for suffix in suffixes:
+            test_symbol = f"{base_symbol}{suffix}"
+            
+            # 2. Database Cache Check for this specific suffix
+            if supabase:
+                try:
+                    cache_res = supabase.table('stock_cache').select('*').eq('symbol', test_symbol).execute()
+                    if len(cache_res.data) > 0:
+                        cached_row = cache_res.data[0]
+                        last_updated_str = cached_row['last_updated']
+                        last_updated = datetime.fromisoformat(last_updated_str.replace('Z', '+00:00'))
+                        
+                        if datetime.now(timezone.utc) - last_updated < timedelta(hours=1):
+                            print(f"✅ Served {test_symbol} instantly from Supabase Cache!")
+                            return cached_row['data']
+                except Exception as e:
+                    pass
+
+            # 3. Fetch Fresh Data if not cached
+            print(f"⏳ Fetching fresh data for {test_symbol}...")
+            ticker = yf.Ticker(test_symbol)
+            temp_history = ticker.history(period="1y")
+            
+            # If we got enough data, lock in this symbol and break the loop
+            if len(temp_history) >= 20:
+                history = temp_history
+                valid_symbol = test_symbol
+                break
+
+        # If we went through all suffixes and still failed
+        if history is None or len(history) < 20:
+            return {"symbol": symbol, "error": "ERR_NO_DATA: Ensure you use the exact ticker symbol (e.g. RELIANCE, TATAMOTORS)."}
+
+        # Use the symbol that successfully returned data
+        symbol = valid_symbol
+        # ==================================
 
         # 4. Price & SMA calculations
         latest_price = float(history['Close'].iloc[-1])
@@ -203,7 +227,7 @@ def analyze_stock(symbol, market):
             signal = "STRONG SELL" if (price_vs_sma_pct < -0.02 and sentiment_score < bear_thresh) else "SELL"
             rationale = "Downtrend confirmed: Price below SMA with negative market sentiment."
 
-        # === 9. NEW: GENERATE EXECUTIVE SUMMARY ===
+        # 9. Generate Executive Summary
         trend_direction = "above" if price_vs_sma_pct > 0 else "below"
         sentiment_tone = "highly positive" if sentiment_score > 0.15 else "mildly positive" if sentiment_score > 0 else "highly negative" if sentiment_score < -0.15 else "mildly negative" if sentiment_score < 0 else "neutral"
 
@@ -213,7 +237,6 @@ def analyze_stock(symbol, market):
             f"CONCLUSION: The 1-year algorithmic backtest of this specific asset yielded a {backtest_return_pct:.2f}% return. "
             f"Fusing the technical trend momentum with the current AI sentiment projections, the system firmly concludes with a {signal} directive."
         )
-        # ============================================
 
         final_result = {
             "symbol": symbol,
@@ -224,7 +247,7 @@ def analyze_stock(symbol, market):
             "sentiment_source": sentiment_source,
             "signal": signal,
             "rationale": rationale,
-            "summary": detailed_summary, # Added summary to output
+            "summary": detailed_summary,
             "backtest_return": round(backtest_return_pct, 2),
             "chart_dates": chart_dates,
             "chart_prices": chart_prices,
@@ -258,7 +281,13 @@ def home():
         raw_inputs = [s.strip() for s in user_input.split(',') if s.strip()]
         
         for query in raw_inputs:
-            symbol = get_symbol_from_name(query) or query.upper()
+            # === NEW: SEARCH BYPASS FOR INDIAN STOCKS ===
+            if market == 'IN':
+                # Bypass US-biased Yahoo search. Just clean spaces and use what they typed.
+                symbol = query.upper().replace(' ', '')
+            else:
+                symbol = get_symbol_from_name(query) or query.upper()
+                
             analysis = analyze_stock(symbol, market)
             results.append(analysis)
             
