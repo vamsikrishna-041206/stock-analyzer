@@ -56,12 +56,10 @@ def get_symbol_from_name(query):
     return None
 
 def get_google_news_headlines(symbol, market):
-    """Fetches the latest headlines from Google News to bypass Yahoo's missing data."""
     try:
         clean_symbol = symbol.replace('.NS', '')
         query = urllib.parse.quote(f"{clean_symbol} stock finance news")
         
-        # Adjust Google News region based on selected market
         if market == 'IN':
             url = f"https://news.google.com/rss/search?q={query}&hl=en-IN&gl=IN&ceid=IN:en"
         else:
@@ -73,7 +71,7 @@ def get_google_news_headlines(symbol, market):
             
         root = ET.fromstring(xml_data)
         titles = []
-        for item in root.findall('.//item')[:5]: # Grab the top 5 most recent headlines
+        for item in root.findall('.//item')[:5]:
             title = item.find('title')
             if title is not None and title.text:
                 titles.append(title.text)
@@ -85,11 +83,11 @@ def get_google_news_headlines(symbol, market):
 # --- Core Algorithmic Engine ---
 def analyze_stock(symbol, market):
     try:
-        # 1. Market Formatting (Indian vs US)
+        # 1. Market Formatting
         if market == 'IN' and not symbol.endswith('.NS'):
             symbol = f"{symbol}.NS"
             
-        # 2. Database Cache Check (Zero-Latency Load)
+        # 2. Database Cache Check
         if supabase:
             try:
                 cache_res = supabase.table('stock_cache').select('*').eq('symbol', symbol).execute()
@@ -98,15 +96,12 @@ def analyze_stock(symbol, market):
                     last_updated_str = cached_row['last_updated']
                     last_updated = datetime.fromisoformat(last_updated_str.replace('Z', '+00:00'))
                     
-                    # Serve from database if less than 1 hour old
                     if datetime.now(timezone.utc) - last_updated < timedelta(hours=1):
-                        print(f"✅ Served {symbol} instantly from Supabase Cache!")
                         return cached_row['data']
             except Exception as e:
                 print(f"Cache Read Error: {e}")
 
-        # 3. Fetch Fresh Data from Yahoo Finance
-        print(f"⏳ Fetching fresh data for {symbol}...")
+        # 3. Fetch Fresh Data
         ticker = yf.Ticker(symbol)
         history = ticker.history(period="1y")
         
@@ -119,31 +114,27 @@ def analyze_stock(symbol, market):
         sma_20 = float(history['SMA_20'].iloc[-1])
         price_vs_sma_pct = (latest_price - sma_20) / sma_20
         
-        # 5. Chart Data & Predictive Machine Learning (Scikit-Learn)
+        # 5. Chart Data & AI Projection
         recent_history = history.tail(120).copy()
         chart_dates = recent_history.index.strftime('%Y-%m-%d').tolist()
         chart_prices = recent_history['Close'].round(2).tolist()
 
-        # Prepare data for AI Linear Regression
         recent_history['Days_From_Start'] = np.arange(len(recent_history))
         X = recent_history[['Days_From_Start']]
         y = recent_history['Close']
 
-        # Train Model
         model = LinearRegression()
         model.fit(X, y)
 
-        # Predict next 7 days
         last_day_index = len(recent_history)
         future_X = np.arange(last_day_index, last_day_index + 7).reshape(-1, 1)
         future_predictions = model.predict(future_X)
 
-        # Generate future dates and prices
         last_date = recent_history.index[-1]
         future_dates = [(last_date + timedelta(days=i)).strftime('%Y-%m-%d') for i in range(1, 8)]
         future_prices = [round(p, 2) for p in future_predictions]
 
-        # 6. The Backtesting Engine (1-Year SMA Strategy Simulation)
+        # 6. Backtesting Engine
         capital = 10000.0 
         shares = 0
         for i in range(20, len(history)):
@@ -160,15 +151,13 @@ def analyze_stock(symbol, market):
         final_value = capital + (shares * latest_price)
         backtest_return_pct = ((final_value - 10000.0) / 10000.0) * 100
 
-        # 7. Sentiment Analysis (Google News + FinBERT)
+        # 7. Sentiment Analysis
         sentiment_score = 0
         sentiment_source = "None"
         
         news_titles = get_google_news_headlines(symbol, market)
-        print(f"📰 Found {len(news_titles)} headlines for {symbol}")
 
         if news_titles:
-            # Attempt AI inference via Hugging Face API
             if HF_API_KEY:
                 try:
                     headers = {"Authorization": f"Bearer {HF_API_KEY}"}
@@ -192,11 +181,10 @@ def analyze_stock(symbol, market):
                             
                         if valid_count > 0:
                             sentiment_score = total_score / valid_count
-                            sentiment_source = "FinBERT AI (Hugging Face)"
+                            sentiment_source = "FinBERT AI"
                 except Exception as e:
-                    print(f"HF API Failed: {e}")
+                    pass
 
-            # Fallback to local dictionary if HF fails
             if sentiment_source == "None":
                 total_score = sum(fallback_analyzer.analyze(title) for title in news_titles)
                 sentiment_score = total_score / len(news_titles)
@@ -215,7 +203,18 @@ def analyze_stock(symbol, market):
             signal = "STRONG SELL" if (price_vs_sma_pct < -0.02 and sentiment_score < bear_thresh) else "SELL"
             rationale = "Downtrend confirmed: Price below SMA with negative market sentiment."
 
-        # Compile final dictionary to send to frontend
+        # === 9. NEW: GENERATE EXECUTIVE SUMMARY ===
+        trend_direction = "above" if price_vs_sma_pct > 0 else "below"
+        sentiment_tone = "highly positive" if sentiment_score > 0.15 else "mildly positive" if sentiment_score > 0 else "highly negative" if sentiment_score < -0.15 else "mildly negative" if sentiment_score < 0 else "neutral"
+
+        detailed_summary = (
+            f"DESCRIPTION: {symbol} is currently trading at ${latest_price:.2f}, which is {abs(price_vs_sma_pct * 100):.2f}% {trend_direction} its 20-day Simple Moving Average. "
+            f"Simultaneously, the qualitative AI analysis via {sentiment_source} reflects a {sentiment_tone} market sentiment (Index: {sentiment_score:.2f}).\n\n"
+            f"CONCLUSION: The 1-year algorithmic backtest of this specific asset yielded a {backtest_return_pct:.2f}% return. "
+            f"Fusing the technical trend momentum with the current AI sentiment projections, the system firmly concludes with a {signal} directive."
+        )
+        # ============================================
+
         final_result = {
             "symbol": symbol,
             "latest_price": round(latest_price, 2),
@@ -225,6 +224,7 @@ def analyze_stock(symbol, market):
             "sentiment_source": sentiment_source,
             "signal": signal,
             "rationale": rationale,
+            "summary": detailed_summary, # Added summary to output
             "backtest_return": round(backtest_return_pct, 2),
             "chart_dates": chart_dates,
             "chart_prices": chart_prices,
@@ -232,7 +232,7 @@ def analyze_stock(symbol, market):
             "future_prices": future_prices
         }
 
-        # 9. Save to Database Cache
+        # 10. Save to Database Cache
         if supabase:
             try:
                 supabase.table('stock_cache').upsert({
@@ -240,7 +240,6 @@ def analyze_stock(symbol, market):
                     'data': final_result,
                     'last_updated': datetime.now(timezone.utc).isoformat()
                 }).execute()
-                print(f"💾 Saved {symbol} to Supabase Cache.")
             except Exception as e:
                 print(f"Cache Write Error: {e}")
 
