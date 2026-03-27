@@ -11,6 +11,8 @@
             --fg-color: #ffffff;
             --dim-color: #666666;
             --border-color: #333333;
+            
+            /* Neon Colors */
             --neon-green: #39ff14;
             --neon-red: #ff2a2a;
             --neon-yellow: #f8df00;
@@ -33,6 +35,7 @@
             margin: 0 auto;
         }
 
+        /* --- BOOT SCREEN OVERLAY --- */
         .boot-screen {
             position: fixed;
             top: 0;
@@ -67,6 +70,7 @@
             font-size: 1.2rem;
         }
 
+        /* Glitchy Header */
         .header {
             border-bottom: 2px solid var(--fg-color);
             padding-bottom: 1rem;
@@ -90,6 +94,7 @@
 
         @keyframes blink { 50% { opacity: 0; } }
 
+        /* UI Cards */
         .card {
             border: 1px solid var(--border-color);
             background: transparent;
@@ -108,6 +113,7 @@
         .card::before { top: -1px; left: -1px; border-right: none; border-bottom: none; }
         .card::after { bottom: -1px; right: -1px; border-left: none; border-top: none; }
 
+        /* Form Inputs */
         .form-group {
             margin-bottom: 1.5rem;
         }
@@ -143,6 +149,7 @@
             color: var(--fg-color);
         }
 
+        /* Execution Button */
         button {
             width: 100%;
             background: transparent;
@@ -163,6 +170,7 @@
             box-shadow: 0 0 15px rgba(255, 255, 255, 0.3);
         }
 
+        /* Results Display */
         .symbol-title {
             font-size: 2.2rem;
             margin-top: 0;
@@ -193,6 +201,7 @@
             font-size: 1.3rem;
         }
 
+        /* Colored Signal Indicators */
         .signal-box {
             display: inline-block;
             padding: 0.3rem 0.8rem;
@@ -201,25 +210,47 @@
             color: var(--bg-color);
         }
 
-        .signal-BUY, .signal-STRONG-BUY { background-color: var(--neon-green); border: 1px solid var(--neon-green); box-shadow: 0 0 10px rgba(57, 255, 20, 0.3); }
-        .signal-SELL, .signal-STRONG-SELL { background-color: var(--neon-red); border: 1px solid var(--neon-red); box-shadow: 0 0 10px rgba(255, 42, 42, 0.3); }
-        .signal-HOLD { background-color: var(--neon-yellow); border: 1px solid var(--neon-yellow); box-shadow: 0 0 10px rgba(248, 223, 0, 0.3); }
+        .signal-BUY, .signal-STRONG-BUY {
+            background-color: var(--neon-green);
+            border: 1px solid var(--neon-green);
+            box-shadow: 0 0 10px rgba(57, 255, 20, 0.3);
+        }
 
-        .rationale-block { margin-top: 2rem; border-left-color: var(--fg-color); }
+        .signal-SELL, .signal-STRONG-SELL {
+            background-color: var(--neon-red);
+            border: 1px solid var(--neon-red);
+            box-shadow: 0 0 10px rgba(255, 42, 42, 0.3);
+        }
+
+        .signal-HOLD {
+            background-color: var(--neon-yellow);
+            border: 1px solid var(--neon-yellow);
+            box-shadow: 0 0 10px rgba(248, 223, 0, 0.3);
+        }
+
+        .rationale-block {
+            margin-top: 2rem;
+            border-left-color: var(--fg-color);
+        }
         
-        /* NEW: Summary block styling */
+        /* Summary block styling */
         .summary-block {
             margin-top: 1.5rem;
             padding: 1rem;
             background: rgba(255,255,255,0.02);
             border: 1px solid var(--border-color);
             color: var(--fg-color);
-            white-space: pre-line; /* Allows the \n\n from Python to create paragraphs */
-            text-transform: none; /* Keeps the text readable in standard case */
+            white-space: pre-line; 
+            text-transform: none; 
             font-family: inherit;
         }
 
-        .error-text { border: 1px dashed var(--neon-red); color: var(--neon-red); padding: 1rem; display: inline-block; }
+        .error-text {
+            border: 1px dashed var(--neon-red);
+            color: var(--neon-red);
+            padding: 1rem;
+            display: inline-block;
+        }
     </style>
 </head>
 <body>
@@ -235,6 +266,7 @@
     {% endif %}
 
     <div class="container">
+        
         <div class="header">
             <h1>STOCK_ANALYZER_BY_A_NOOB<span class="cursor">_</span></h1>
             <span style="color: var(--dim-color);">STATUS: ONLINE</span>
@@ -252,7 +284,8 @@
                 
                 <div class="form-group">
                     <label for="symbols">TARGET_TICKERS (COMMA_SEPARATED) &gt;</label>
-                    <input type="text" id="symbols" name="symbols" placeholder="E.G. RELIANCE, TCS, AAPL..." required autocomplete="new-password" spellcheck="false">
+                    <input type="text" id="symbols" name="symbols" placeholder="E.G. RELIANCE, TCS, AAPL..." required autocomplete="off" list="kill-history" spellcheck="false">
+                    <datalist id="kill-history"></datalist>
                 </div>
                 
                 <button type="submit" id="scan-btn">[ INITIATE_SCAN ]</button>
@@ -275,7 +308,9 @@
                             <div class="data-block">
                                 <div class="data-label">SYSTEM_DIRECTIVE</div>
                                 <div class="data-value">
-                                    <span class="signal-box signal-{{ item.signal | replace(' ', '-') }}">{{ item.signal }}</span>
+                                    <span class="signal-box signal-{{ item.signal | replace(' ', '-') }}">
+                                        {{ item.signal }}
+                                    </span>
                                 </div>
                             </div>
                             
@@ -323,14 +358,20 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.0.1/chartjs-plugin-zoom.min.js"></script>
     
     <script>
+        // --- 1. BOOT SCREEN LOGIC ---
         const initBtn = document.getElementById('init-btn');
         const bootScreen = document.getElementById('boot-screen');
+        
         if (initBtn && bootScreen) {
-            initBtn.addEventListener('click', () => { bootScreen.classList.add('hidden'); });
+            initBtn.addEventListener('click', () => {
+                bootScreen.classList.add('hidden');
+            });
         }
 
+        // --- 2. SCANNING BUTTON ANIMATION ---
         const scanForm = document.getElementById('scan-form');
         const scanBtn = document.getElementById('scan-btn');
+        
         if (scanForm && scanBtn) {
             scanForm.addEventListener('submit', () => {
                 scanBtn.innerHTML = '[ SCANNING_NETWORK... ] <span class="cursor">_</span>';
@@ -341,6 +382,7 @@
             });
         }
 
+        // --- 3. CHART RENDERING ---
         {% if results %}
             {% for item in results %}
                 {% if not item.error %}
@@ -399,7 +441,6 @@
                                         display: true,
                                         labels: { color: '#666666', font: { family: 'Share Tech Mono' } }
                                     },
-                                    // NEW: Zoom Configuration
                                     zoom: {
                                         pan: {
                                             enabled: true,
