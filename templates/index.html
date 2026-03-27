@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SYS // STOCK_ANALYZER_BY_A_NOOB</title>
+    <title>SYS // STOCK_ANALYZER</title>
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -11,12 +11,10 @@
             --fg-color: #ffffff;
             --dim-color: #666666;
             --border-color: #333333;
-            
-            /* Neon Opinion Colors */
             --neon-green: #39ff14;
             --neon-red: #ff2a2a;
             --neon-yellow: #f8df00;
-            --neon-cyan: #00ffff; /* Added for the AI prediction line */
+            --neon-cyan: #00ffff; 
         }
 
         body {
@@ -27,6 +25,7 @@
             margin: 0;
             padding: 2rem;
             line-height: 1.5;
+            overflow-x: hidden;
         }
 
         .container {
@@ -34,7 +33,40 @@
             margin: 0 auto;
         }
 
-        /* Glitchy Header */
+        .boot-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg-color);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            transition: opacity 0.8s ease-out, visibility 0.8s;
+        }
+
+        .boot-screen.hidden {
+            opacity: 0;
+            visibility: hidden;
+        }
+
+        .boot-screen h1 {
+            font-size: 3rem;
+            text-align: center;
+            margin-bottom: 1rem;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+        }
+
+        .boot-screen p {
+            color: var(--neon-cyan);
+            letter-spacing: 4px;
+            margin-bottom: 3rem;
+            font-size: 1.2rem;
+        }
+
         .header {
             border-bottom: 2px solid var(--fg-color);
             padding-bottom: 1rem;
@@ -58,7 +90,6 @@
 
         @keyframes blink { 50% { opacity: 0; } }
 
-        /* UI Cards */
         .card {
             border: 1px solid var(--border-color);
             background: transparent;
@@ -67,7 +98,6 @@
             position: relative;
         }
 
-        /* Futuristic Corner Accents */
         .card::before, .card::after {
             content: '';
             position: absolute;
@@ -78,7 +108,6 @@
         .card::before { top: -1px; left: -1px; border-right: none; border-bottom: none; }
         .card::after { bottom: -1px; right: -1px; border-left: none; border-top: none; }
 
-        /* Form Inputs */
         .form-group {
             margin-bottom: 1.5rem;
         }
@@ -114,11 +143,10 @@
             color: var(--fg-color);
         }
 
-        /* Execution Button */
         button {
             width: 100%;
-            background: var(--fg-color);
-            color: var(--bg-color);
+            background: transparent;
+            color: var(--fg-color);
             border: 1px solid var(--fg-color);
             padding: 1rem;
             font-family: inherit;
@@ -130,12 +158,11 @@
         }
 
         button:hover {
-            background: var(--bg-color);
-            color: var(--fg-color);
+            background: var(--fg-color);
+            color: var(--bg-color);
             box-shadow: 0 0 15px rgba(255, 255, 255, 0.3);
         }
 
-        /* Results Display */
         .symbol-title {
             font-size: 2.2rem;
             margin-top: 0;
@@ -166,7 +193,6 @@
             font-size: 1.3rem;
         }
 
-        /* Colored Signal Indicators */
         .signal-box {
             display: inline-block;
             padding: 0.3rem 0.8rem;
@@ -175,47 +201,47 @@
             color: var(--bg-color);
         }
 
-        .signal-BUY, .signal-STRONG-BUY {
-            background-color: var(--neon-green);
-            border: 1px solid var(--neon-green);
-            box-shadow: 0 0 10px rgba(57, 255, 20, 0.3);
-        }
+        .signal-BUY, .signal-STRONG-BUY { background-color: var(--neon-green); border: 1px solid var(--neon-green); box-shadow: 0 0 10px rgba(57, 255, 20, 0.3); }
+        .signal-SELL, .signal-STRONG-SELL { background-color: var(--neon-red); border: 1px solid var(--neon-red); box-shadow: 0 0 10px rgba(255, 42, 42, 0.3); }
+        .signal-HOLD { background-color: var(--neon-yellow); border: 1px solid var(--neon-yellow); box-shadow: 0 0 10px rgba(248, 223, 0, 0.3); }
 
-        .signal-SELL, .signal-STRONG-SELL {
-            background-color: var(--neon-red);
-            border: 1px solid var(--neon-red);
-            box-shadow: 0 0 10px rgba(255, 42, 42, 0.3);
-        }
-
-        .signal-HOLD {
-            background-color: var(--neon-yellow);
-            border: 1px solid var(--neon-yellow);
-            box-shadow: 0 0 10px rgba(248, 223, 0, 0.3);
-        }
-
-        .rationale-block {
-            margin-top: 2rem;
-            border-left-color: var(--fg-color);
-        }
-
-        .error-text {
-            border: 1px dashed var(--neon-red);
-            color: var(--neon-red);
+        .rationale-block { margin-top: 2rem; border-left-color: var(--fg-color); }
+        
+        /* NEW: Summary block styling */
+        .summary-block {
+            margin-top: 1.5rem;
             padding: 1rem;
-            display: inline-block;
+            background: rgba(255,255,255,0.02);
+            border: 1px solid var(--border-color);
+            color: var(--fg-color);
+            white-space: pre-line; /* Allows the \n\n from Python to create paragraphs */
+            text-transform: none; /* Keeps the text readable in standard case */
+            font-family: inherit;
         }
+
+        .error-text { border: 1px dashed var(--neon-red); color: var(--neon-red); padding: 1rem; display: inline-block; }
     </style>
 </head>
 <body>
+
+    {% if not results %}
+    <div id="boot-screen" class="boot-screen">
+        <h1>SYS // TERMINAL_READY</h1>
+        <p>AWAITING_USER_AUTHORIZATION<span class="cursor">_</span></p>
+        <button type="button" id="init-btn" style="max-width: 400px; border-color: var(--neon-cyan); color: var(--neon-cyan);">
+            [ ACCESS_MAINFRAME ]
+        </button>
+    </div>
+    {% endif %}
+
     <div class="container">
-        
         <div class="header">
             <h1>STOCK_ANALYZER_BY_A_NOOB<span class="cursor">_</span></h1>
             <span style="color: var(--dim-color);">STATUS: ONLINE</span>
         </div>
 
         <div class="card">
-            <form method="POST" autocomplete="off">
+            <form id="scan-form" method="POST" autocomplete="off">
                 <div class="form-group">
                     <label for="market">SELECT_EXCHANGE &gt;</label>
                     <select id="market" name="market">
@@ -226,9 +252,10 @@
                 
                 <div class="form-group">
                     <label for="symbols">TARGET_TICKERS (COMMA_SEPARATED) &gt;</label>
-                    <input type="text" id="symbols" name="symbols" placeholder="E.G. RELIANCE, TCS, ZOMATO..." required autocomplete="nope">
+                    <input type="text" id="symbols" name="symbols" placeholder="E.G. RELIANCE, TCS, AAPL..." required autocomplete="new-password" spellcheck="false">
                 </div>
-                <button type="submit">[ INITIATE_SCAN ]</button>
+                
+                <button type="submit" id="scan-btn">[ INITIATE_SCAN ]</button>
             </form>
         </div>
 
@@ -248,9 +275,7 @@
                             <div class="data-block">
                                 <div class="data-label">SYSTEM_DIRECTIVE</div>
                                 <div class="data-value">
-                                    <span class="signal-box signal-{{ item.signal | replace(' ', '-') }}">
-                                        {{ item.signal }}
-                                    </span>
+                                    <span class="signal-box signal-{{ item.signal | replace(' ', '-') }}">{{ item.signal }}</span>
                                 </div>
                             </div>
                             
@@ -277,12 +302,13 @@
                             </div>
                         </div>
 
-                        <div class="data-block rationale-block">
-                            <div class="data-label">ALGORITHMIC_RATIONALE</div>
-                            <div class="data-value" style="font-size: 1rem;">{{ item.rationale }}</div>
+                        <div class="summary-block">
+                            <span style="color: var(--neon-cyan); font-weight: bold; letter-spacing: 2px;">&gt; SYSTEM_REPORT_GENERATED:</span><br>
+                            {{ item.summary }}
                         </div>
 
                         <div style="margin-top: 2rem; border: 1px solid var(--border-color); padding: 1rem; background: rgba(0,0,0,0.5);">
+                            <div style="text-align: right; color: var(--dim-color); font-size: 0.8rem; margin-bottom: 0.5rem;">[ USE MOUSEWHEEL TO ZOOM / DRAG TO PAN ]</div>
                             <canvas id="chart-{{ loop.index }}" height="100"></canvas>
                         </div>
                     {% endif %}
@@ -293,29 +319,45 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.0.1/chartjs-plugin-zoom.min.js"></script>
     
     <script>
+        const initBtn = document.getElementById('init-btn');
+        const bootScreen = document.getElementById('boot-screen');
+        if (initBtn && bootScreen) {
+            initBtn.addEventListener('click', () => { bootScreen.classList.add('hidden'); });
+        }
+
+        const scanForm = document.getElementById('scan-form');
+        const scanBtn = document.getElementById('scan-btn');
+        if (scanForm && scanBtn) {
+            scanForm.addEventListener('submit', () => {
+                scanBtn.innerHTML = '[ SCANNING_NETWORK... ] <span class="cursor">_</span>';
+                scanBtn.style.color = 'var(--neon-cyan)';
+                scanBtn.style.borderColor = 'var(--neon-cyan)';
+                scanBtn.style.boxShadow = '0 0 15px rgba(0, 255, 255, 0.4)';
+                scanBtn.style.pointerEvents = 'none';
+            });
+        }
+
         {% if results %}
             {% for item in results %}
                 {% if not item.error %}
                     (function() {
                         const ctx = document.getElementById('chart-{{ loop.index }}').getContext('2d');
                         
-                        // 1. Parse data from Python
                         const pastDates = {{ item.chart_dates | tojson | safe }};
                         const pastPrices = {{ item.chart_prices | tojson | safe }};
                         const futureDates = {{ item.future_dates | tojson | safe }};
                         const futurePrices = {{ item.future_prices | tojson | safe }};
                         
-                        // 2. Combine dates for the X-axis
                         const allDates = pastDates.concat(futureDates);
                         
-                        // 3. Set neon line color based on the algorithmic signal
-                        let lineColor = '#f8df00'; // Default Yellow (HOLD)
-                        if ("{{ item.signal }}".includes("BUY")) lineColor = '#39ff14'; // Neon Green
-                        if ("{{ item.signal }}".includes("SELL")) lineColor = '#ff2a2a'; // Neon Red
+                        let lineColor = '#f8df00'; 
+                        if ("{{ item.signal }}".includes("BUY")) lineColor = '#39ff14'; 
+                        if ("{{ item.signal }}".includes("SELL")) lineColor = '#ff2a2a'; 
 
-                        // 4. Create the "empty" array to stitch the future line smoothly to the past line
                         const lastPastPrice = pastPrices[pastPrices.length - 1];
                         const predictionPadding = Array(pastPrices.length - 1).fill(null);
                         const predictionData = predictionPadding.concat([lastPastPrice]).concat(futurePrices);
@@ -339,9 +381,9 @@
                                     {
                                         label: 'AI 7-Day Projection',
                                         data: predictionData,
-                                        borderColor: '#00ffff', // Neon Cyan for AI prediction
+                                        borderColor: '#00ffff',
                                         borderWidth: 2,
-                                        borderDash: [5, 5], // Creates the dashed holographic look
+                                        borderDash: [5, 5],
                                         pointRadius: 2,
                                         pointBackgroundColor: '#00ffff',
                                         fill: false,
@@ -351,15 +393,28 @@
                             },
                             options: {
                                 responsive: true,
-                                interaction: {
-                                    intersect: false,
-                                    mode: 'index',
-                                },
+                                interaction: { intersect: false, mode: 'index' },
                                 plugins: {
                                     legend: { 
                                         display: true,
                                         labels: { color: '#666666', font: { family: 'Share Tech Mono' } }
-                                    } 
+                                    },
+                                    // NEW: Zoom Configuration
+                                    zoom: {
+                                        pan: {
+                                            enabled: true,
+                                            mode: 'x'
+                                        },
+                                        zoom: {
+                                            wheel: {
+                                                enabled: true,
+                                            },
+                                            pinch: {
+                                                enabled: true
+                                            },
+                                            mode: 'x',
+                                        }
+                                    }
                                 },
                                 scales: {
                                     x: {
