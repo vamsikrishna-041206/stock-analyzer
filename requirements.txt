@@ -1,7 +1,8 @@
 Flask==3.0.0
-yfinance==0.2.40
+yfinance
 requests
 pandas>=2.2.0
 gunicorn==21.2.0
-supabase==2.3.4
+supabase
 scikit-learn
+websockets>=14.2
