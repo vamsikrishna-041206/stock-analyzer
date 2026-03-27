@@ -47,7 +47,9 @@ fallback_analyzer = BasicSentimentAnalyzer()
 def get_symbol_from_name(query):
     try:
         url = "https://query2.finance.yahoo.com/v1/finance/search"
-        response = requests.get(url, params={'q': query, 'quotesCount': 1}, headers={'User-Agent': 'Mozilla/5.0'})
+        # UPGRADE: Stronger User-Agent disguise for the search API
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
+        response = requests.get(url, params={'q': query, 'quotesCount': 1}, headers=headers)
         data = response.json()
         if 'quotes' in data and len(data['quotes']) > 0:
             return data['quotes'][0]['symbol']
@@ -83,11 +85,10 @@ def get_google_news_headlines(symbol, market):
 # --- Core Algorithmic Engine ---
 def analyze_stock(symbol, market):
     try:
-        # === 1. THE EXCHANGE HUNTER ===
+        # 1. THE EXCHANGE HUNTER
         if market == 'IN':
-            # Remove any existing suffixes so we can test cleanly
             base_symbol = symbol.replace('.NS', '').replace('.BO', '')
-            suffixes = ['.NS', '.BO'] # Try NSE first, then BSE
+            suffixes = ['.NS', '.BO'] 
         else:
             base_symbol = symbol
             suffixes = ['']
@@ -95,10 +96,21 @@ def analyze_stock(symbol, market):
         history = None
         valid_symbol = symbol
 
+        # === THE DISGUISE ===
+        # Create a secure session to trick Yahoo into thinking Render is a normal human browser
+        session = requests.Session()
+        session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': '*/*',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive'
+        })
+        # ====================
+
         for suffix in suffixes:
             test_symbol = f"{base_symbol}{suffix}"
             
-            # 2. Database Cache Check for this specific suffix
+            # Database Cache Check
             if supabase:
                 try:
                     cache_res = supabase.table('stock_cache').select('*').eq('symbol', test_symbol).execute()
@@ -113,24 +125,22 @@ def analyze_stock(symbol, market):
                 except Exception as e:
                     pass
 
-            # 3. Fetch Fresh Data if not cached
+            # Fetch Fresh Data using the disguised session
             print(f"⏳ Fetching fresh data for {test_symbol}...")
-            ticker = yf.Ticker(test_symbol)
+            ticker = yf.Ticker(test_symbol, session=session)
             temp_history = ticker.history(period="1y")
             
-            # If we got enough data, lock in this symbol and break the loop
-            if len(temp_history) >= 20:
+            # Verify the dataframe isn't empty and has enough data
+            if temp_history is not None and not temp_history.empty and len(temp_history) >= 20:
                 history = temp_history
                 valid_symbol = test_symbol
                 break
 
-        # If we went through all suffixes and still failed
-        if history is None or len(history) < 20:
-            return {"symbol": symbol, "error": "ERR_NO_DATA: Ensure you use the exact ticker symbol (e.g. RELIANCE, TATAMOTORS)."}
+        # Safety Net: If Yahoo completely blocked us or the stock doesn't exist
+        if history is None or history.empty or len(history) < 20:
+            return {"symbol": symbol, "error": "ERR_NO_DATA: Ensure you use the exact ticker symbol (e.g. RELIANCE, AAPL) or Yahoo servers are temporarily blocking the connection."}
 
-        # Use the symbol that successfully returned data
         symbol = valid_symbol
-        # ==================================
 
         # 4. Price & SMA calculations
         latest_price = float(history['Close'].iloc[-1])
@@ -281,9 +291,7 @@ def home():
         raw_inputs = [s.strip() for s in user_input.split(',') if s.strip()]
         
         for query in raw_inputs:
-            # === NEW: SEARCH BYPASS FOR INDIAN STOCKS ===
             if market == 'IN':
-                # Bypass US-biased Yahoo search. Just clean spaces and use what they typed.
                 symbol = query.upper().replace(' ', '')
             else:
                 symbol = get_symbol_from_name(query) or query.upper()
