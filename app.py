@@ -47,7 +47,6 @@ fallback_analyzer = BasicSentimentAnalyzer()
 def get_symbol_from_name(query):
     try:
         url = "https://query2.finance.yahoo.com/v1/finance/search"
-        # UPGRADE: Stronger User-Agent disguise for the search API
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
         response = requests.get(url, params={'q': query, 'quotesCount': 1}, headers=headers)
         data = response.json()
@@ -96,17 +95,6 @@ def analyze_stock(symbol, market):
         history = None
         valid_symbol = symbol
 
-        # === THE DISGUISE ===
-        # Create a secure session to trick Yahoo into thinking Render is a normal human browser
-        session = requests.Session()
-        session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': '*/*',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Connection': 'keep-alive'
-        })
-        # ====================
-
         for suffix in suffixes:
             test_symbol = f"{base_symbol}{suffix}"
             
@@ -125,9 +113,9 @@ def analyze_stock(symbol, market):
                 except Exception as e:
                     pass
 
-            # Fetch Fresh Data using the disguised session
+            # Fetch Fresh Data (Letting yfinance handle its own disguise)
             print(f"⏳ Fetching fresh data for {test_symbol}...")
-            ticker = yf.Ticker(test_symbol, session=session)
+            ticker = yf.Ticker(test_symbol) # Removed our custom session
             temp_history = ticker.history(period="1y")
             
             # Verify the dataframe isn't empty and has enough data
