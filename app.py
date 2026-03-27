@@ -7,6 +7,9 @@ import os
 import numpy as np
 from sklearn.linear_model import LinearRegression
 from supabase import create_client, Client
+import urllib.request
+import urllib.parse
+import xml.etree.ElementTree as ET
 
 app = Flask(__name__)
 
@@ -52,6 +55,34 @@ def get_symbol_from_name(query):
         pass
     return None
 
+def get_google_news_headlines(symbol, market):
+    """Fetches the latest headlines from Google News to bypass Yahoo's missing data."""
+    try:
+        clean_symbol = symbol.replace('.NS', '')
+        query = urllib.parse.quote(f"{clean_symbol} stock finance news")
+        
+        # Adjust Google News region based on selected market
+        if market == 'IN':
+            url = f"https://news.google.com/rss/search?q={query}&hl=en-IN&gl=IN&ceid=IN:en"
+        else:
+            url = f"https://news.google.com/rss/search?q={query}&hl=en-US&gl=US&ceid=US:en"
+            
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req) as response:
+            xml_data = response.read()
+            
+        root = ET.fromstring(xml_data)
+        titles = []
+        for item in root.findall('.//item')[:5]: # Grab the top 5 most recent headlines
+            title = item.find('title')
+            if title is not None and title.text:
+                titles.append(title.text)
+        return titles
+    except Exception as e:
+        print(f"Google News Fetch Error: {e}")
+        return []
+
+# --- Core Algorithmic Engine ---
 def analyze_stock(symbol, market):
     try:
         # 1. Market Formatting (Indian vs US)
@@ -129,17 +160,12 @@ def analyze_stock(symbol, market):
         final_value = capital + (shares * latest_price)
         backtest_return_pct = ((final_value - 10000.0) / 10000.0) * 100
 
-        # 7. Hugging Face FinBERT Sentiment Analysis
+        # 7. Sentiment Analysis (Google News + FinBERT)
         sentiment_score = 0
         sentiment_source = "None"
-        news_titles = []
         
-        try:
-            news = ticker.news
-            if news:
-                news_titles = [item.get('title', '') for item in news][:5]
-        except Exception:
-            pass
+        news_titles = get_google_news_headlines(symbol, market)
+        print(f"📰 Found {len(news_titles)} headlines for {symbol}")
 
         if news_titles:
             # Attempt AI inference via Hugging Face API
